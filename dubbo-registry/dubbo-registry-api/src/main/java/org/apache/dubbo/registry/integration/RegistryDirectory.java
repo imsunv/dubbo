@@ -55,7 +55,6 @@ import java.util.Set;
 
 /**
  * RegistryDirectory
- *
  */
 public class RegistryDirectory<T> extends AbstractDirectory<T> implements NotifyListener {
 
@@ -342,21 +341,26 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
         }
         Set<String> keys = new HashSet<String>();
         String queryProtocols = this.queryMap.get(Constants.PROTOCOL_KEY);
+
+        // If protocol is not configured at the reference side, default protocol should be selected.
+        if (queryProtocols == null || queryProtocols.length() == 0) {
+            queryProtocols = Constants.DEFAULT_PROTOCOL;
+        }
+
         for (URL providerUrl : urls) {
             // If protocol is configured at the reference side, only the matching protocol is selected
-            if (queryProtocols != null && queryProtocols.length() > 0) {
-                boolean accept = false;
-                String[] acceptProtocols = queryProtocols.split(",");
-                for (String acceptProtocol : acceptProtocols) {
-                    if (providerUrl.getProtocol().equals(acceptProtocol)) {
-                        accept = true;
-                        break;
-                    }
-                }
-                if (!accept) {
-                    continue;
+            boolean accept = false;
+            String[] acceptProtocols = queryProtocols.split(",");
+            for (String acceptProtocol : acceptProtocols) {
+                if (providerUrl.getProtocol().equals(acceptProtocol)) {
+                    accept = true;
+                    break;
                 }
             }
+            if (!accept) {
+                continue;
+            }
+
             if (Constants.EMPTY_PROTOCOL.equals(providerUrl.getProtocol())) {
                 continue;
             }
@@ -573,8 +577,8 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
         if (forbidden) {
             // 1. No service provider 2. Service providers are disabled
             throw new RpcException(RpcException.FORBIDDEN_EXCEPTION,
-                "No provider available from registry " + getUrl().getAddress() + " for service " + getConsumerUrl().getServiceKey() + " on consumer " +  NetUtils.getLocalHost()
-                        + " use dubbo version " + Version.getVersion() + ", please check status of providers(disabled, not registered or in blacklist).");
+                    "No provider available from registry " + getUrl().getAddress() + " for service " + getConsumerUrl().getServiceKey() + " on consumer " + NetUtils.getLocalHost()
+                            + " use dubbo version " + Version.getVersion() + ", please check status of providers(disabled, not registered or in blacklist).");
         }
         List<Invoker<T>> invokers = null;
         Map<String, List<Invoker<T>>> localMethodInvokerMap = this.methodInvokerMap; // local reference
