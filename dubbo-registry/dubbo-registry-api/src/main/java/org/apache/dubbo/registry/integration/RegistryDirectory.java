@@ -342,33 +342,11 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
         Set<String> keys = new HashSet<String>();
         String queryProtocols = this.queryMap.get(Constants.PROTOCOL_KEY);
 
-        // If protocol is not configured at the reference side, default protocol should be selected.
-        if (queryProtocols == null || queryProtocols.length() == 0) {
-            queryProtocols = Constants.DEFAULT_PROTOCOL;
-        }
-
         for (URL providerUrl : urls) {
-            // If protocol is configured at the reference side, only the matching protocol is selected
-            boolean accept = false;
-            String[] acceptProtocols = queryProtocols.split(",");
-            for (String acceptProtocol : acceptProtocols) {
-                if (providerUrl.getProtocol().equals(acceptProtocol)) {
-                    accept = true;
-                    break;
-                }
-            }
-            if (!accept) {
+            if (!checkProtocol(queryProtocols, providerUrl)) {
                 continue;
             }
 
-            if (Constants.EMPTY_PROTOCOL.equals(providerUrl.getProtocol())) {
-                continue;
-            }
-            if (!ExtensionLoader.getExtensionLoader(Protocol.class).hasExtension(providerUrl.getProtocol())) {
-                logger.error(new IllegalStateException("Unsupported protocol " + providerUrl.getProtocol() + " in notified url: " + providerUrl + " from registry " + getUrl().getAddress() + " to consumer " + NetUtils.getLocalHost()
-                        + ", supported protocol: " + ExtensionLoader.getExtensionLoader(Protocol.class).getSupportedExtensions()));
-                continue;
-            }
             URL url = mergeUrl(providerUrl);
 
             String key = url.toFullString(); // The parameter urls are sorted
@@ -402,6 +380,45 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
         }
         keys.clear();
         return newUrlInvokerMap;
+    }
+
+    /**
+     * Check the protocol for providerUrl should be accepted by reference.
+     *  1. If protocol is not configured at the reference side, default protocol should be selected.
+     *  2. If protocol is configured at the reference side, only the matching protocol is selected
+     *
+     * @param queryProtocols accepted protocols
+     * @param providerUrl provider url
+     * @return {@code true} only if the protocol is matched
+     */
+    private boolean checkProtocol(String queryProtocols, URL providerUrl) {
+        if (queryProtocols == null || queryProtocols.length() == 0) {
+            queryProtocols = Constants.DEFAULT_PROTOCOL;
+        }
+
+        boolean accept = false;
+        String[] acceptProtocols = queryProtocols.split(",");
+        for (String acceptProtocol : acceptProtocols) {
+            if (providerUrl.getProtocol().equals(acceptProtocol)) {
+                accept = true;
+                break;
+            }
+        }
+        if (!accept) {
+            return false;
+        }
+
+        if (Constants.EMPTY_PROTOCOL.equals(providerUrl.getProtocol())) {
+            return false;
+        }
+
+        if (!ExtensionLoader.getExtensionLoader(Protocol.class).hasExtension(providerUrl.getProtocol())) {
+            logger.error(new IllegalStateException("Unsupported protocol " + providerUrl.getProtocol() + " in notified url: " + providerUrl + " from registry " + getUrl().getAddress() + " to consumer " + NetUtils.getLocalHost()
+                    + ", supported protocol: " + ExtensionLoader.getExtensionLoader(Protocol.class).getSupportedExtensions()));
+            return false;
+        }
+
+        return true;
     }
 
     /**
