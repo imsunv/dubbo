@@ -24,6 +24,8 @@ public interface StateListener {
 
     int RECONNECTED = 2;
 
+    int NEW_SESSION = 3;
+
     void stateChanged(int connected);
 
 }

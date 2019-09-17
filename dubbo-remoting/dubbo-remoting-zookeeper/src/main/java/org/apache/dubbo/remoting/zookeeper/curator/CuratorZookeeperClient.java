@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.apache.dubbo.common.constants.CommonConstants.TIMEOUT_KEY;
 
@@ -58,6 +59,7 @@ public class CuratorZookeeperClient extends AbstractZookeeperClient<CuratorZooke
     private final CuratorFramework client;
     private Map<String, TreeCache> treeCacheMap = new ConcurrentHashMap<>();
 
+    private AtomicLong currentSessionId = new AtomicLong(0);
 
     public CuratorZookeeperClient(URL url) {
         super(url);
@@ -78,9 +80,19 @@ public class CuratorZookeeperClient extends AbstractZookeeperClient<CuratorZooke
                     if (state == ConnectionState.LOST) {
                         CuratorZookeeperClient.this.stateChanged(StateListener.DISCONNECTED);
                     } else if (state == ConnectionState.CONNECTED) {
+                        currentSessionId.set(getSessionId());
                         CuratorZookeeperClient.this.stateChanged(StateListener.CONNECTED);
                     } else if (state == ConnectionState.RECONNECTED) {
-                        CuratorZookeeperClient.this.stateChanged(StateListener.RECONNECTED);
+                        long newSessionId = getSessionId();
+                        long oldSessionId = currentSessionId.get();
+                        if (oldSessionId != newSessionId) {
+                            //RECONNECTED but zookeeper session has expired and a new session has been created
+                            if (currentSessionId.compareAndSet(oldSessionId, newSessionId)) {
+                                CuratorZookeeperClient.this.stateChanged(StateListener.NEW_SESSION);
+                            }
+                        } else {
+                            CuratorZookeeperClient.this.stateChanged(StateListener.RECONNECTED);
+                        }
                     }
                 }
             });
@@ -338,6 +350,16 @@ public class CuratorZookeeperClient extends AbstractZookeeperClient<CuratorZooke
                 dataListener.dataChanged(path, content, eventType);
             }
         }
+    }
+
+    private long getSessionId() {
+        org.apache.curator.CuratorZookeeperClient curatorZookeeperClient = client.getZookeeperClient();
+        try {
+            return curatorZookeeperClient.getZooKeeper().getSessionId();
+        } catch (Exception e) {
+            logger.debug("Get zk client session id failed, cause by " + e.getMessage(), e);
+        }
+        return 0;
     }
 
     /**

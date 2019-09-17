@@ -82,7 +82,7 @@ public class ZookeeperRegistry extends FailbackRegistry {
         this.root = group;
         zkClient = zookeeperTransporter.connect(url);
         zkClient.addStateListener(state -> {
-            if (state == StateListener.RECONNECTED) {
+            if (state == StateListener.NEW_SESSION) {
                 try {
                     recover();
                 } catch (Exception e) {
